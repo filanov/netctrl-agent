@@ -37,6 +37,24 @@ func (c *Client) RegisterAgent(ctx context.Context, req *v1.RegisterAgentRequest
 	return resp, nil
 }
 
+// GetInstructions polls the server for pending instructions.
+func (c *Client) GetInstructions(ctx context.Context, req *v1.GetInstructionsRequest) (*v1.GetInstructionsResponse, error) {
+	resp, err := c.agentService.GetInstructions(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get instructions: %w", err)
+	}
+	return resp, nil
+}
+
+// UnregisterAgent sends an unregistration request to the server.
+func (c *Client) UnregisterAgent(ctx context.Context, req *v1.UnregisterAgentRequest) (*v1.UnregisterAgentResponse, error) {
+	resp, err := c.agentService.UnregisterAgent(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unregister agent: %w", err)
+	}
+	return resp, nil
+}
+
 // Close closes the gRPC connection.
 func (c *Client) Close() error {
 	if c.conn != nil {
