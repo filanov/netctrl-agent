@@ -175,7 +175,7 @@ func (a *Agent) Unregister(ctx context.Context) error {
 
 	// Prepare unregister request
 	req := &v1.UnregisterAgentRequest{
-		AgentId: a.agentID,
+		Id: a.agentID,
 	}
 
 	// Send unregister request

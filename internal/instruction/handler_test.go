@@ -40,7 +40,6 @@ func TestRegistry_Register(t *testing.T) {
 }
 
 func TestRegistry_HasHandler(t *testing.T) {
-	registry := NewRegistry()
 	handler := &mockHandler{result: "test"}
 
 	tests := []struct {

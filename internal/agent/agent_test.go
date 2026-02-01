@@ -8,7 +8,6 @@ import (
 
 	v1 "github.com/filanov/netctrl-server/pkg/api/v1"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 )
 
