@@ -55,7 +55,14 @@ make docker-shell
 Build a multi-stage production image with minimal footprint:
 
 ```bash
+# Standard build (native architecture)
 make docker-build-prod
+
+# Multi-architecture build (amd64, arm64)
+make docker-build-multiarch
+
+# Build and push to registry (amd64, arm64, arm/v7)
+DOCKER_REGISTRY=docker.io/username make docker-push-multiarch
 ```
 
 Run the agent in a production container:
@@ -63,6 +70,12 @@ Run the agent in a production container:
 ```bash
 NETCTRL_CLUSTER_ID=my-cluster make docker-run
 ```
+
+**Multi-Architecture Support:**
+The Docker build supports multiple architectures using Docker buildx:
+- `linux/amd64` (x86_64)
+- `linux/arm64` (ARM 64-bit, e.g., AWS Graviton, Apple Silicon)
+- `linux/arm/v7` (ARM 32-bit, push target only)
 
 ### Manual Build
 

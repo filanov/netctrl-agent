@@ -1,5 +1,5 @@
 .PHONY: all build clean test coverage run help deps lint fmt tidy test-race test-cover
-.PHONY: docker-build-dev docker-build-prod docker-run docker-shell docker-clean
+.PHONY: docker-build-dev docker-build-prod docker-build-multiarch docker-push-multiarch docker-run docker-shell docker-clean
 .PHONY: build-local lint-local test-local fmt-local install-tools
 
 # Variables
@@ -9,7 +9,7 @@ CMD_DIR=cmd/agent
 
 # Docker variables
 DOCKER_IMAGE=netctrl-agent:dev
-DOCKER_PROD_IMAGE=netctrl-agent:latest
+DOCKER_PROD_IMAGE?=netctrl-agent:latest
 DOCKER_RUN=docker run --rm \
 	-v $(PWD):/workspace \
 	-v $(HOME)/.cache/go-build:/root/.cache/go-build \
@@ -48,6 +48,32 @@ docker-build-prod: ## Build production Docker image (multi-stage, minimal)
 	@echo "Production image built: $(DOCKER_PROD_IMAGE)"
 	@echo "Image size:"
 	@docker images $(DOCKER_PROD_IMAGE) --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+
+docker-build-multiarch: ## Build and test multi-architecture image (linux/amd64,linux/arm64)
+	@echo "Building multi-architecture Docker image..."
+	@echo "Note: Multi-platform images are built but not loaded locally."
+	@docker buildx build \
+		--platform linux/amd64,linux/arm64 \
+		-f Dockerfile.prod \
+		-t $(DOCKER_PROD_IMAGE) \
+		.
+	@echo "Multi-arch build complete: $(DOCKER_PROD_IMAGE)"
+	@echo "To load a specific platform locally, use:"
+	@echo "  docker buildx build --platform linux/amd64 -f Dockerfile.prod -t $(DOCKER_PROD_IMAGE) --load ."
+
+docker-push-multiarch: ## Build and push multi-architecture image to registry
+	@echo "Building and pushing multi-architecture Docker image..."
+	@if [ -z "$(DOCKER_REGISTRY)" ]; then \
+		echo "Error: DOCKER_REGISTRY is required (e.g., DOCKER_REGISTRY=docker.io/username)"; \
+		exit 1; \
+	fi
+	@docker buildx build \
+		--platform linux/amd64,linux/arm64,linux/arm/v7 \
+		-f Dockerfile.prod \
+		-t $(DOCKER_REGISTRY)/$(DOCKER_PROD_IMAGE) \
+		--push \
+		.
+	@echo "Multi-arch image pushed: $(DOCKER_REGISTRY)/$(DOCKER_PROD_IMAGE)"
 
 docker-run: ## Run agent in production container (requires NETCTRL_CLUSTER_ID and NETCTRL_SERVER_ADDRESS env vars)
 	@echo "Running agent in Docker container..."
@@ -237,11 +263,13 @@ help: ## Show this help message
 	@echo "  run          - Build and run the application"
 	@echo ""
 	@echo "Docker-specific targets:"
-	@echo "  docker-build-dev   - Build development Docker image"
-	@echo "  docker-build-prod  - Build production Docker image (multi-stage)"
-	@echo "  docker-run         - Run agent in production container"
-	@echo "  docker-shell       - Open interactive shell in dev container"
-	@echo "  docker-clean       - Remove Docker images"
+	@echo "  docker-build-dev        - Build development Docker image"
+	@echo "  docker-build-prod       - Build production Docker image (multi-stage)"
+	@echo "  docker-build-multiarch  - Build multi-arch image (amd64, arm64) locally"
+	@echo "  docker-push-multiarch   - Build and push multi-arch image to registry"
+	@echo "  docker-run              - Run agent in production container"
+	@echo "  docker-shell            - Open interactive shell in dev container"
+	@echo "  docker-clean            - Remove Docker images"
 	@echo ""
 	@echo "Local execution targets (bypass Docker):"
 	@echo "  build-local  - Build using local Go installation"
@@ -265,5 +293,7 @@ help: ## Show this help message
 	@echo "Example usage:"
 	@echo "  NETCTRL_CLUSTER_ID=my-cluster make run"
 	@echo "  NETCTRL_CLUSTER_ID=my-cluster NETCTRL_SERVER_ADDRESS=server:9090 make docker-run"
+	@echo "  make docker-build-multiarch  # Build for amd64 and arm64"
+	@echo "  DOCKER_REGISTRY=docker.io/myuser make docker-push-multiarch  # Push to registry"
 
 .DEFAULT_GOAL := help
