@@ -13,9 +13,15 @@ import (
 )
 
 func main() {
+	// Get configuration from environment variables (can be overridden by flags)
+	defaultServerAddr := os.Getenv("NETCTRL_SERVER_ADDRESS")
+	if defaultServerAddr == "" {
+		defaultServerAddr = "localhost:9090"
+	}
+
 	// Define command-line flags
 	clusterID := flag.String("cluster-id", "", "Cluster ID (required)")
-	serverAddr := flag.String("server-address", "localhost:9090", "Server address")
+	serverAddr := flag.String("server-address", defaultServerAddr, "Server address")
 	timeout := flag.Duration("timeout", 10*time.Second, "Operation timeout")
 	daemon := flag.Bool("daemon", false, "Run in daemon mode (continuous polling)")
 	flag.Parse()
