@@ -1,0 +1,74 @@
+# Production Dockerfile for netctrl-agent
+# Multi-stage build: builder + minimal runtime
+# Used for: production deployment only
+
+# ============================================================================
+# Stage 1: Builder
+# ============================================================================
+FROM golang:1.23-alpine AS builder
+
+LABEL maintainer="netctrl-agent"
+LABEL description="Builder stage for production binary"
+
+# Install build dependencies
+RUN apk add --no-cache \
+    git \
+    make \
+    ca-certificates
+
+# Set GOTOOLCHAIN to auto to allow Go to download the required version
+ENV GOTOOLCHAIN=auto
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy go mod files and download dependencies
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY cmd/ cmd/
+COPY internal/ internal/
+
+# Build the binary with optimizations for production
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags='-w -s -extldflags "-static"' \
+    -a \
+    -o /bin/netctrl-agent \
+    ./cmd/agent
+
+# Verify the binary was built
+RUN test -f /bin/netctrl-agent
+
+# ============================================================================
+# Stage 2: Runtime (Production)
+# ============================================================================
+FROM alpine:3.21
+
+LABEL maintainer="netctrl-agent"
+LABEL description="Production runtime with minimal footprint"
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata
+
+# Create non-root user for security
+RUN addgroup -g 1000 -S netctrl && \
+    adduser -u 1000 -S netctrl -G netctrl
+
+# Create application directory
+RUN mkdir -p /app && chown netctrl:netctrl /app
+
+# Copy binary from builder
+COPY --from=builder --chown=netctrl:netctrl /bin/netctrl-agent /app/netctrl-agent
+
+# Switch to non-root user
+USER netctrl
+
+# Set working directory
+WORKDIR /app
+
+# Agent connects outbound to server, no ports to expose
+
+# Run the agent
+# Note: cluster-id and server-address should be provided via environment variables or command-line flags
+CMD ["./netctrl-agent"]

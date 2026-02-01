@@ -1,0 +1,42 @@
+# Binaries and build artifacts
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test and coverage files
+*.test
+*.out
+coverage.out
+coverage.html
+
+# Git
+.git/
+.gitignore
+
+# Documentation (not needed in build context)
+*.md
+docs/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Docker files (no need to copy into context)
+Dockerfile.dev
+Dockerfile.prod
+.dockerignore

@@ -1,0 +1,35 @@
+# Development Dockerfile for netctrl-agent
+# Used for: building, testing, linting
+
+FROM golang:1.23-alpine
+
+LABEL maintainer="netctrl-agent"
+LABEL description="Development environment with all build tools"
+
+# Install build dependencies
+RUN apk add --no-cache \
+    git \
+    make \
+    ca-certificates \
+    bash \
+    curl
+
+# Set GOTOOLCHAIN to auto to allow Go to download the required version
+ENV GOTOOLCHAIN=auto
+
+# Set working directory
+WORKDIR /workspace
+
+# Copy go mod files first and download Go toolchain + dependencies
+# This MUST happen before installing tools to ensure they use the correct Go version
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Install golangci-lint - uses Go 1.25.4
+RUN GOTOOLCHAIN=go1.25.4 go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.62.2
+
+# Verify Go version
+RUN go version
+
+# Default command opens a shell for interactive use
+CMD ["/bin/sh"]
