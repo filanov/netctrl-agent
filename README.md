@@ -8,10 +8,10 @@ The client-side component of the netctrl system. Runs on cluster nodes and commu
 - Deterministic UUID generation based on hostname + IP
 - gRPC-based registration with netctrl-server
 - Command-line and environment variable configuration
-- **Daemon mode**: Continuous polling for instructions with graceful shutdown
+- **Long-lived daemon**: Continuous polling for instructions with graceful shutdown
 - **Instruction processing**: Handles POLL_INTERVAL and HEALTH_CHECK instructions
 - **Exponential backoff**: Resilient reconnection on network failures
-- Simple exit-after-registration workflow (backward compatible)
+- **Heartbeat mechanism**: Each poll updates agent's last_seen timestamp
 
 ## Building
 
@@ -96,47 +96,32 @@ go build -o bin/netctrl-agent cmd/agent/main.go
 **Command-line flags:**
 - `--cluster-id` (required): Cluster ID to register with
 - `--server-address`: Server address (default: `localhost:9090`)
-- `--timeout`: Operation timeout for one-shot mode (default: `10s`)
-- `--daemon`: Run in daemon mode for continuous polling (default: `false`)
 
 **Environment variables:**
 - `NETCTRL_CLUSTER_ID`: Alternative way to provide cluster ID
+- `NETCTRL_SERVER_ADDRESS`: Alternative way to provide server address
 
 ### Examples
 
-#### One-Shot Mode (Default)
-
-Register once and exit:
+The agent runs as a long-lived daemon that continuously polls for instructions:
 
 ```bash
-# Register with default server
+# Run with default server (localhost:9090)
 ./bin/netctrl-agent --cluster-id=production
 
-# Register with custom server
+# Run with custom server
 ./bin/netctrl-agent --cluster-id=staging --server-address=10.0.0.5:9090
 
-# Use environment variable
-export NETCTRL_CLUSTER_ID=test-cluster
+# Use environment variables
+export NETCTRL_CLUSTER_ID=production
+export NETCTRL_SERVER_ADDRESS=10.0.0.5:9090
 ./bin/netctrl-agent
 
-# Custom timeout
-./bin/netctrl-agent --cluster-id=prod --timeout=30s
-```
-
-#### Daemon Mode
-
-Run continuously and poll for instructions:
-
-```bash
-# Run in daemon mode with default 60s poll interval
-./bin/netctrl-agent --cluster-id=production --daemon
-
-# Run in daemon mode with custom server
-./bin/netctrl-agent --cluster-id=staging --server-address=10.0.0.5:9090 --daemon
-
-# Run in daemon mode via environment variable
-export NETCTRL_CLUSTER_ID=production
-./bin/netctrl-agent --daemon
+# Docker with host networking
+docker run --network host \
+  -e NETCTRL_CLUSTER_ID=production \
+  -e NETCTRL_SERVER_ADDRESS=10.0.0.5:9090 \
+  netctrl-agent:latest
 
 # Stop gracefully with SIGTERM or SIGINT (Ctrl+C)
 # The agent will unregister before exiting
@@ -162,24 +147,20 @@ netctrl-agent/
 
 ### How It Works
 
-#### One-Shot Mode (Default)
+The agent runs as a long-lived daemon that maintains continuous communication with the server:
+
 1. **Discovery Phase**: Agent discovers hostname using `os.Hostname()` and finds the primary non-loopback IPv4 address
 2. **UUID Generation**: Creates a deterministic UUID by hashing `hostname:ip` with SHA256
-3. **gRPC Connection**: Establishes insecure gRPC connection to netctrl-server
-4. **Registration**: Sends `RegisterAgentRequest` with cluster ID, hostname, IP, and version
-5. **Exit**: Logs success and exits
-
-#### Daemon Mode (`--daemon`)
-1. **Registration**: Performs one-shot registration (steps 1-4 above)
-2. **Polling Loop**: Continuously polls server using `GetInstructions` RPC
+3. **Registration**: Sends `RegisterAgentRequest` with cluster ID, hostname, IP, and version to netctrl-server
+4. **Polling Loop**: Continuously polls server using `GetInstructions` RPC
    - Default poll interval: 60 seconds
    - Server can adjust interval dynamically via `POLL_INTERVAL` instruction
    - Each poll acts as a heartbeat (updates agent's `last_seen` timestamp)
-3. **Instruction Processing**: Executes instructions via handler registry
+5. **Instruction Processing**: Executes instructions via handler registry
    - `POLL_INTERVAL`: Adjusts polling interval (10-300 seconds)
    - `HEALTH_CHECK`: Collects and reports agent health (uptime, status, hostname, IP)
-4. **Error Handling**: Exponential backoff on failures (1s → 2s → 4s → 8s → max 60s)
-5. **Graceful Shutdown**: On SIGTERM/SIGINT, sends `UnregisterAgent` request before exit
+6. **Error Handling**: Exponential backoff on failures (1s → 2s → 4s → 8s → max 60s)
+7. **Graceful Shutdown**: On SIGTERM/SIGINT, sends `UnregisterAgent` request before exit
 
 ### UUID Generation
 
@@ -192,7 +173,7 @@ This ensures the same node always gets the same UUID, making re-registration ide
 
 ### Instruction Types
 
-The agent supports the following instruction types in daemon mode:
+The agent supports the following instruction types:
 
 #### POLL_INTERVAL
 

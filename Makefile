@@ -56,7 +56,7 @@ docker-build-multiarch: ## Build and test multi-architecture image (linux/amd64,
 		docker buildx create --name multiarch-builder --driver docker-container --use
 	@docker buildx build \
 		--builder multiarch-builder \
-		--platform linux/amd64,linux/arm64 \
+		--platform linux/amd64,linux/arm64 --push \
 		-f Dockerfile.prod \
 		-t $(DOCKER_PROD_IMAGE) \
 		.
