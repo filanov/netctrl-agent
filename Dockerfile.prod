@@ -53,7 +53,10 @@ LABEL maintainer="netctrl-agent"
 LABEL description="Production runtime with minimal footprint"
 
 # Install runtime dependencies
-RUN apk add --no-cache ca-certificates tzdata
+# - ca-certificates, tzdata: TLS and timezone support
+# - pciutils: Provides lspci for hardware detection (COLLECT_HARDWARE instruction)
+# - ethtool: Network interface information
+RUN apk add --no-cache ca-certificates tzdata pciutils ethtool
 
 # Create non-root user for security
 RUN addgroup -g 1000 -S netctrl && \
