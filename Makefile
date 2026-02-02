@@ -60,31 +60,6 @@ docker-build-multiarch: ## Build and test multi-architecture image (linux/amd64,
 		-f Dockerfile.prod \
 		-t $(DOCKER_PROD_IMAGE) \
 		.
-	@echo "Multi-arch build complete: $(DOCKER_PROD_IMAGE)"
-	@echo ""
-	@echo "To load a specific platform locally:"
-	@echo "  docker buildx build --platform linux/amd64 -f Dockerfile.prod -t $(DOCKER_PROD_IMAGE) --load ."
-	@echo ""
-	@echo "To push to a registry:"
-	@echo "  DOCKER_REGISTRY=docker.io/username make docker-push-multiarch"
-
-docker-push-multiarch: ## Build and push multi-architecture image to registry
-	@echo "Building and pushing multi-architecture Docker image..."
-	@if [ -z "$(DOCKER_REGISTRY)" ]; then \
-		echo "Error: DOCKER_REGISTRY is required (e.g., DOCKER_REGISTRY=docker.io/username)"; \
-		exit 1; \
-	fi
-	@echo "Ensuring multi-platform builder exists..."
-	@docker buildx inspect multiarch-builder >/dev/null 2>&1 || \
-		docker buildx create --name multiarch-builder --driver docker-container --use
-	@docker buildx build \
-		--builder multiarch-builder \
-		--platform linux/amd64,linux/arm64,linux/arm/v7 \
-		-f Dockerfile.prod \
-		-t $(DOCKER_REGISTRY)/$(DOCKER_PROD_IMAGE) \
-		--push \
-		.
-	@echo "Multi-arch image pushed: $(DOCKER_REGISTRY)/$(DOCKER_PROD_IMAGE)"
 
 docker-run: ## Run agent in production container (requires NETCTRL_CLUSTER_ID and NETCTRL_SERVER_ADDRESS env vars)
 	@echo "Running agent in Docker container..."
