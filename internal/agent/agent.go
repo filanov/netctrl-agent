@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -21,6 +22,7 @@ type Agent struct {
 	hostname           string
 	ipAddress          string
 	lastInstructionID  string
+	lastResultData     string
 	pollInterval       time.Duration
 	registry           *instruction.Registry
 }
@@ -115,6 +117,7 @@ func (a *Agent) poll(ctx context.Context) error {
 	req := &v1.GetInstructionsRequest{
 		AgentId:           a.agentID,
 		LastInstructionId: a.lastInstructionID,
+		ResultData:        a.lastResultData,
 	}
 
 	// Get instructions from server
@@ -132,6 +135,9 @@ func (a *Agent) poll(ctx context.Context) error {
 		}
 	}
 
+	// Clear previous result data after it's been sent
+	a.lastResultData = ""
+
 	// Process each instruction
 	for _, instruction := range resp.Instructions {
 		log.Printf("Processing instruction: id=%s, type=%s", instruction.Id, instruction.Type)
@@ -146,7 +152,14 @@ func (a *Agent) poll(ctx context.Context) error {
 		resultData, err := a.registry.Execute(ctx, instruction)
 		if err != nil {
 			log.Printf("Error executing instruction %s: %v", instruction.Id, err)
-			// Store error result for next poll
+			// Store error as result for next poll
+			errorResult := map[string]interface{}{
+				"status": "error",
+				"error":  err.Error(),
+			}
+			if errorJSON, err := json.Marshal(errorResult); err == nil {
+				a.lastResultData = string(errorJSON)
+			}
 			a.lastInstructionID = instruction.Id
 			// Continue processing other instructions
 			continue
@@ -157,8 +170,9 @@ func (a *Agent) poll(ctx context.Context) error {
 			log.Printf("Result: %s", resultData)
 		}
 
-		// Update last processed instruction ID
+		// Store result data and instruction ID for next poll
 		a.lastInstructionID = instruction.Id
+		a.lastResultData = resultData
 	}
 
 	return nil
