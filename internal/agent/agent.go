@@ -43,6 +43,10 @@ func New(clusterID, serverAddress string) *Agent {
 		v1.InstructionType_INSTRUCTION_TYPE_HEALTH_CHECK,
 		handlers.NewHealthCheckHandler(),
 	)
+	agent.registry.Register(
+		v1.InstructionType_INSTRUCTION_TYPE_COLLECT_HARDWARE,
+		handlers.NewCollectHardwareHandler(),
+	)
 
 	return agent
 }

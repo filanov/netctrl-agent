@@ -9,7 +9,8 @@ The client-side component of the netctrl system. Runs on cluster nodes and commu
 - gRPC-based registration with netctrl-server
 - Command-line and environment variable configuration
 - **Long-lived daemon**: Continuous polling for instructions with graceful shutdown
-- **Instruction processing**: Handles POLL_INTERVAL and HEALTH_CHECK instructions
+- **Instruction processing**: Handles POLL_INTERVAL, HEALTH_CHECK, and COLLECT_HARDWARE instructions
+- **Hardware inventory**: Collects Mellanox NIC information (firmware, ports, speeds, etc.)
 - **Exponential backoff**: Resilient reconnection on network failures
 - **Heartbeat mechanism**: Each poll updates agent's last_seen timestamp
 
@@ -212,6 +213,72 @@ Collects and reports agent health status.
   "timestamp": "2024-01-15T10:30:00Z"
 }
 ```
+
+#### COLLECT_HARDWARE
+
+Collects Mellanox NIC hardware inventory including device details, firmware versions, and port information.
+
+**Payload:** Empty (no payload required)
+
+**Requirements:**
+- Requires privileged mode (see Privileged Mode section below)
+- Requires `lspci` command (usually in `pciutils` package)
+- Optional: `mstflint` command for detailed firmware info (Mellanox Firmware Tools)
+
+**Example result:**
+```json
+{
+  "nics": [
+    {
+      "device_name": "mlx5_0",
+      "pci_address": "0000:03:00.0",
+      "part_number": "MCX515A-CCAT",
+      "serial_number": "MT2113X00123",
+      "firmware_version": "16.35.3006",
+      "psid": "MT_0000000011",
+      "port_count": 2,
+      "ports": [
+        {
+          "number": 1,
+          "state": "up",
+          "speed": "100G",
+          "mac_address": "b8:ce:f6:4d:a9:ec",
+          "mtu": 1500,
+          "interface_name": "ens1f0",
+          "pci_address": "0000:03:00.0"
+        }
+      ]
+    }
+  ],
+  "count": 1
+}
+```
+
+### Privileged Mode
+
+The `COLLECT_HARDWARE` instruction requires the agent to run in privileged mode to access hardware information. When running in Docker:
+
+```bash
+# Add --privileged flag
+docker run --privileged --network host \
+  -e NETCTRL_CLUSTER_ID=production \
+  -e NETCTRL_SERVER_ADDRESS=10.0.0.5:9090 \
+  netctrl-agent:latest
+```
+
+Alternatively, for more granular control, mount the required sysfs paths:
+
+```bash
+docker run --network host \
+  -v /sys:/sys:ro \
+  -v /dev:/dev:ro \
+  --cap-add=SYS_ADMIN \
+  -e NETCTRL_CLUSTER_ID=production \
+  -e NETCTRL_SERVER_ADDRESS=10.0.0.5:9090 \
+  netctrl-agent:latest
+```
+
+**Note:** Without privileged access, the `COLLECT_HARDWARE` instruction will return limited or no hardware information.
 
 ## Development
 

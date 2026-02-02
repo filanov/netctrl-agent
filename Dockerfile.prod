@@ -75,4 +75,6 @@ WORKDIR /app
 
 # Run the agent
 # Note: cluster-id and server-address should be provided via environment variables or command-line flags
+# Note: For COLLECT_HARDWARE instruction support, container should run with --privileged flag
+#       or with appropriate volume mounts (-v /sys:/sys:ro -v /dev:/dev:ro)
 CMD ["./netctrl-agent"]

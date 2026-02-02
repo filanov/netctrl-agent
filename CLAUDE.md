@@ -114,11 +114,29 @@ The agent uses a handler registry pattern for processing instructions:
 - `handler.go`: Defines `Handler` interface and `Registry` for managing handlers
 - `handlers/`: Individual instruction type implementations
 
+**Current instruction handlers:**
+- `poll_interval.go`: Adjusts agent polling interval (10-300s range)
+- `health_check.go`: Collects agent health status (uptime, hostname, IP)
+- `collect_hardware.go`: Collects Mellanox NIC hardware inventory
+
 **Adding a new instruction handler:**
 
 1. Create handler in `internal/instruction/handlers/<type>.go`
 2. Implement the `Handler` interface with `Execute(ctx, instruction) (result, error)`
 3. Register handler in `agent.New()` in `internal/agent/agent.go`
+
+**Hardware Collection Notes:**
+
+The `collect_hardware.go` handler collects Mellanox NIC information including:
+- Device name, PCI address, part/serial numbers
+- Firmware version and PSID
+- Port details (state, speed, MAC, MTU, interface name)
+
+Requirements:
+- Requires `lspci` command (pciutils package)
+- Optional: `mstflint` for detailed firmware info
+- Needs privileged access to `/sys` and `/dev` filesystems
+- Container should run with `--privileged` flag or appropriate volume mounts
 
 ### Polling Loop
 

@@ -1,5 +1,5 @@
-github.com/filanov/netctrl-server v0.0.0-20260201114324-26076ba2e051 h1:HxhKtjFY5BZv4a3BaPkpBJzWJJRH8zBIl/TKRGjPJuQ=
-github.com/filanov/netctrl-server v0.0.0-20260201114324-26076ba2e051/go.mod h1:wSfFZ4HThLKSx+kwNI4flVZxf+NSHOv8aC4stCqH+YI=
+github.com/filanov/netctrl-server v0.0.0-20260202131115-ad751168d335 h1:7msO0x1mYPuoLgERf9uySx0nNuMqESGlduDr/Iat9Lg=
+github.com/filanov/netctrl-server v0.0.0-20260202131115-ad751168d335/go.mod h1:wSfFZ4HThLKSx+kwNI4flVZxf+NSHOv8aC4stCqH+YI=
 github.com/go-logr/logr v1.4.3 h1:CjnDlHq8ikf6E492q6eKboGOC0T8CDaOvkHCIg8idEI=
 github.com/go-logr/logr v1.4.3/go.mod h1:9T104GzyrTigFIr8wt5mBrctHMim0Nb2HLGrmQ40KvY=
 github.com/go-logr/stdr v1.2.2 h1:hSWxHoqTgW2S2qGc0LTAI563KZ5YKYRhT3MFKZMbjag=

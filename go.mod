@@ -3,7 +3,7 @@ module github.com/filanov/netctrl-agent
 go 1.25.4
 
 require (
-	github.com/filanov/netctrl-server v0.0.0-20260201114324-26076ba2e051
+	github.com/filanov/netctrl-server v0.0.0-20260202131115-ad751168d335
 	google.golang.org/grpc v1.78.0
 )
 
