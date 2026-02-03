@@ -34,10 +34,15 @@ func (h *CollectHardwareHandler) Execute(ctx context.Context, instruction *v1.In
 		return "", fmt.Errorf("failed to collect Mellanox NICs: %w", err)
 	}
 
-	// Marshal to JSON
+	// Convert to proto format
+	protoNICs := convertToProtoNICs(nics)
+
+	// Wrap in the format expected by the server
 	result := map[string]interface{}{
-		"nics":  nics,
-		"count": len(nics),
+		"instruction_type": "INSTRUCTION_TYPE_COLLECT_HARDWARE",
+		"data": map[string]interface{}{
+			"network_interfaces": protoNICs,
+		},
 	}
 
 	resultJSON, err := json.Marshal(result)
@@ -70,6 +75,84 @@ type PortInfo struct {
 	GUID          string `json:"guid"`
 	PCIAddress    string `json:"pci_address"`
 	InterfaceName string `json:"interface_name"`
+}
+
+// convertToProtoNICs converts internal NICInfo to proto-compatible format.
+func convertToProtoNICs(nics []NICInfo) []map[string]interface{} {
+	var protoNICs []map[string]interface{}
+
+	for _, nic := range nics {
+		protoNIC := map[string]interface{}{
+			"device_name":      nic.DeviceName,
+			"pci_address":      nic.PCIAddress,
+			"part_number":      nic.PartNumber,
+			"serial_number":    nic.SerialNumber,
+			"firmware_version": nic.FirmwareVersion,
+			"port_count":       nic.PortCount,
+			"psid":             nic.PSID,
+		}
+
+		// Convert ports
+		if len(nic.Ports) > 0 {
+			var protoPorts []map[string]interface{}
+			for _, port := range nic.Ports {
+				protoPort := map[string]interface{}{
+					"number":         port.Number,
+					"state":          convertPortState(port.State),
+					"speed":          convertPortSpeed(port.Speed),
+					"mac_address":    port.MACAddress,
+					"mtu":            port.MTU,
+					"guid":           port.GUID,
+					"pci_address":    port.PCIAddress,
+					"interface_name": port.InterfaceName,
+				}
+				protoPorts = append(protoPorts, protoPort)
+			}
+			protoNIC["ports"] = protoPorts
+		}
+
+		protoNICs = append(protoNICs, protoNIC)
+	}
+
+	return protoNICs
+}
+
+// convertPortState converts string state to proto enum value.
+func convertPortState(state string) string {
+	switch strings.ToLower(state) {
+	case "up":
+		return "PORT_STATE_UP"
+	case "down":
+		return "PORT_STATE_DOWN"
+	case "testing":
+		return "PORT_STATE_TESTING"
+	default:
+		return "PORT_STATE_UNSPECIFIED"
+	}
+}
+
+// convertPortSpeed converts speed string (e.g., "100G") to proto enum value.
+func convertPortSpeed(speed string) string {
+	switch speed {
+	case "1G":
+		return "PORT_SPEED_1G"
+	case "10G":
+		return "PORT_SPEED_10G"
+	case "25G":
+		return "PORT_SPEED_25G"
+	case "40G":
+		return "PORT_SPEED_40G"
+	case "50G":
+		return "PORT_SPEED_50G"
+	case "100G":
+		return "PORT_SPEED_100G"
+	case "200G":
+		return "PORT_SPEED_200G"
+	case "400G":
+		return "PORT_SPEED_400G"
+	default:
+		return "PORT_SPEED_UNSPECIFIED"
+	}
 }
 
 // collectMellanoxNICs discovers and collects information about Mellanox NICs.
