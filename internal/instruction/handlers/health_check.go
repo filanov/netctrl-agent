@@ -41,11 +41,11 @@ func (h *HealthCheckHandler) Execute(ctx context.Context, instruction *v1.Instru
 
 	// Collect health data
 	healthData := map[string]interface{}{
-		"status":       "active",
-		"hostname":     h.hostname,
-		"ip_address":   h.ipAddress,
+		"status":         "active",
+		"hostname":       h.hostname,
+		"ip_address":     h.ipAddress,
 		"uptime_seconds": int(uptime.Seconds()),
-		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+		"timestamp":      time.Now().UTC().Format(time.RFC3339),
 	}
 
 	// Marshal to JSON

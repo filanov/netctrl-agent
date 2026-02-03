@@ -7,24 +7,22 @@ import (
 	"log"
 	"time"
 
-	v1 "github.com/filanov/netctrl-server/pkg/api/v1"
 	"github.com/filanov/netctrl-agent/internal/client"
 	"github.com/filanov/netctrl-agent/internal/discovery"
 	"github.com/filanov/netctrl-agent/internal/instruction"
 	"github.com/filanov/netctrl-agent/internal/instruction/handlers"
+	v1 "github.com/filanov/netctrl-server/pkg/api/v1"
 )
 
 // Agent represents the netctrl agent instance.
 type Agent struct {
-	clusterID          string
-	serverAddress      string
-	agentID            string
-	hostname           string
-	ipAddress          string
-	lastInstructionID  string
-	lastResultData     string
-	pollInterval       time.Duration
-	registry           *instruction.Registry
+	clusterID     string
+	serverAddress string
+	agentID       string
+	hostname      string
+	ipAddress     string
+	pollInterval  time.Duration
+	registry      *instruction.Registry
 }
 
 // New creates a new Agent instance with instruction handlers.
@@ -113,11 +111,9 @@ func (a *Agent) poll(ctx context.Context) error {
 	}
 	defer grpcClient.Close()
 
-	// Prepare GetInstructions request
+	// Prepare GetInstructions request - now only needs agent_id
 	req := &v1.GetInstructionsRequest{
-		AgentId:           a.agentID,
-		LastInstructionId: a.lastInstructionID,
-		ResultData:        a.lastResultData,
+		AgentId: a.agentID,
 	}
 
 	// Get instructions from server
@@ -135,9 +131,6 @@ func (a *Agent) poll(ctx context.Context) error {
 		}
 	}
 
-	// Clear previous result data after it's been sent
-	a.lastResultData = ""
-
 	// Process each instruction
 	for _, instruction := range resp.Instructions {
 		log.Printf("Processing instruction: id=%s, type=%s", instruction.Id, instruction.Type)
@@ -145,6 +138,8 @@ func (a *Agent) poll(ctx context.Context) error {
 		// Check if handler is registered for this instruction type
 		if !a.registry.HasHandler(instruction.Type) {
 			log.Printf("Warning: no handler for instruction type %s, skipping", instruction.Type)
+			// Submit error result for unsupported instruction type
+			a.submitResult(ctx, grpcClient, instruction.Id, instruction.Type, nil, fmt.Errorf("no handler registered for instruction type %s", instruction.Type))
 			continue
 		}
 
@@ -152,16 +147,8 @@ func (a *Agent) poll(ctx context.Context) error {
 		resultData, err := a.registry.Execute(ctx, instruction)
 		if err != nil {
 			log.Printf("Error executing instruction %s: %v", instruction.Id, err)
-			// Store error as result for next poll
-			errorResult := map[string]interface{}{
-				"status": "error",
-				"error":  err.Error(),
-			}
-			if errorJSON, err := json.Marshal(errorResult); err == nil {
-				a.lastResultData = string(errorJSON)
-			}
-			a.lastInstructionID = instruction.Id
-			// Continue processing other instructions
+			// Submit error result
+			a.submitResult(ctx, grpcClient, instruction.Id, instruction.Type, nil, err)
 			continue
 		}
 
@@ -170,12 +157,48 @@ func (a *Agent) poll(ctx context.Context) error {
 			log.Printf("Result: %s", resultData)
 		}
 
-		// Store result data and instruction ID for next poll
-		a.lastInstructionID = instruction.Id
-		a.lastResultData = resultData
+		// Convert result string to proto message
+		result, err := convertToProtoResult(instruction.Type, resultData)
+		if err != nil {
+			log.Printf("Error converting result for instruction %s: %v", instruction.Id, err)
+			// Submit error result
+			a.submitResult(ctx, grpcClient, instruction.Id, instruction.Type, nil, err)
+			continue
+		}
+
+		// Submit successful result
+		a.submitResult(ctx, grpcClient, instruction.Id, instruction.Type, result, nil)
 	}
 
 	return nil
+}
+
+// submitResult submits an instruction result to the server.
+func (a *Agent) submitResult(ctx context.Context, grpcClient *client.Client, instructionID string, instructionType v1.InstructionType, result *v1.InstructionResult, err error) {
+	// Create result if error occurred
+	if err != nil {
+		result = createErrorResult(instructionType, err)
+	}
+
+	// Prepare submit request
+	submitReq := &v1.SubmitInstructionResultRequest{
+		AgentId:       a.agentID,
+		InstructionId: instructionID,
+		Result:        result,
+	}
+
+	// Submit result
+	submitResp, submitErr := grpcClient.SubmitInstructionResult(ctx, submitReq)
+	if submitErr != nil {
+		log.Printf("Failed to submit result for instruction %s: %v", instructionID, submitErr)
+		return
+	}
+
+	if submitResp.Success {
+		log.Printf("Successfully submitted result for instruction %s", instructionID)
+	} else {
+		log.Printf("Server reported failure when submitting result for instruction %s: %s", instructionID, submitResp.Message)
+	}
 }
 
 // Unregister removes the agent registration from the server.
@@ -272,4 +295,64 @@ func (a *Agent) Register(ctx context.Context) error {
 	log.Printf("Status: %s", resp.Agent.Status.String())
 
 	return nil
+}
+
+// convertToProtoResult converts JSON result string to InstructionResult proto message.
+func convertToProtoResult(instructionType v1.InstructionType, resultData string) (*v1.InstructionResult, error) {
+	result := &v1.InstructionResult{
+		InstructionType: instructionType,
+	}
+
+	switch instructionType {
+	case v1.InstructionType_INSTRUCTION_TYPE_COLLECT_HARDWARE:
+		// Parse JSON directly into HardwareCollectionResult
+		var hwResult v1.HardwareCollectionResult
+		if err := json.Unmarshal([]byte(resultData), &hwResult); err != nil {
+			return nil, fmt.Errorf("failed to parse hardware result: %w", err)
+		}
+		result.Result = &v1.InstructionResult_HardwareCollection{
+			HardwareCollection: &hwResult,
+		}
+
+	case v1.InstructionType_INSTRUCTION_TYPE_HEALTH_CHECK:
+		// For health check, just mark as healthy if no error
+		result.Result = &v1.InstructionResult_HealthCheck{
+			HealthCheck: &v1.HealthCheckResult{
+				Healthy: true,
+			},
+		}
+
+	default:
+		return nil, fmt.Errorf("unsupported instruction type: %v", instructionType)
+	}
+
+	return result, nil
+}
+
+// createErrorResult creates an InstructionResult with error information.
+func createErrorResult(instructionType v1.InstructionType, err error) *v1.InstructionResult {
+	result := &v1.InstructionResult{
+		InstructionType: instructionType,
+	}
+
+	// Set error in the appropriate result type
+	switch instructionType {
+	case v1.InstructionType_INSTRUCTION_TYPE_HEALTH_CHECK:
+		result.Result = &v1.InstructionResult_HealthCheck{
+			HealthCheck: &v1.HealthCheckResult{
+				Healthy:      false,
+				ErrorMessage: err.Error(),
+			},
+		}
+	default:
+		// For other types, we'll use health check as a generic error carrier
+		result.Result = &v1.InstructionResult_HealthCheck{
+			HealthCheck: &v1.HealthCheckResult{
+				Healthy:      false,
+				ErrorMessage: fmt.Sprintf("instruction failed: %v", err),
+			},
+		}
+	}
+
+	return result
 }

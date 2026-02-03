@@ -11,8 +11,8 @@ import (
 
 // Client wraps the gRPC connection and AgentService client.
 type Client struct {
-	conn          *grpc.ClientConn
-	agentService  v1.AgentServiceClient
+	conn         *grpc.ClientConn
+	agentService v1.AgentServiceClient
 }
 
 // NewClient creates a new gRPC client connected to the specified address.
@@ -51,6 +51,15 @@ func (c *Client) UnregisterAgent(ctx context.Context, req *v1.UnregisterAgentReq
 	resp, err := c.agentService.UnregisterAgent(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unregister agent: %w", err)
+	}
+	return resp, nil
+}
+
+// SubmitInstructionResult submits the result of an executed instruction.
+func (c *Client) SubmitInstructionResult(ctx context.Context, req *v1.SubmitInstructionResultRequest) (*v1.SubmitInstructionResultResponse, error) {
+	resp, err := c.agentService.SubmitInstructionResult(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to submit instruction result: %w", err)
 	}
 	return resp, nil
 }

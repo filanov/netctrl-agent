@@ -34,18 +34,16 @@ func (h *CollectHardwareHandler) Execute(ctx context.Context, instruction *v1.In
 		return "", fmt.Errorf("failed to collect Mellanox NICs: %w", err)
 	}
 
-	// Convert to proto format
-	protoNICs := convertToProtoNICs(nics)
+	// Convert to proto MellanoxNIC objects
+	protoNICs := convertToProtoMellanoxNICs(nics)
 
-	// Wrap in the format expected by the server
-	result := map[string]interface{}{
-		"instruction_type": "INSTRUCTION_TYPE_COLLECT_HARDWARE",
-		"data": map[string]interface{}{
-			"network_interfaces": protoNICs,
-		},
+	// Create HardwareCollectionResult
+	hwResult := &v1.HardwareCollectionResult{
+		NetworkInterfaces: protoNICs,
 	}
 
-	resultJSON, err := json.Marshal(result)
+	// Marshal to JSON (for agent to parse and put in InstructionResult)
+	resultJSON, err := json.Marshal(hwResult)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal hardware data: %w", err)
 	}
@@ -77,38 +75,38 @@ type PortInfo struct {
 	InterfaceName string `json:"interface_name"`
 }
 
-// convertToProtoNICs converts internal NICInfo to proto-compatible format.
-func convertToProtoNICs(nics []NICInfo) []map[string]interface{} {
-	var protoNICs []map[string]interface{}
+// convertToProtoMellanoxNICs converts internal NICInfo to proto MellanoxNIC objects.
+func convertToProtoMellanoxNICs(nics []NICInfo) []*v1.MellanoxNIC {
+	var protoNICs []*v1.MellanoxNIC
 
 	for _, nic := range nics {
-		protoNIC := map[string]interface{}{
-			"device_name":      nic.DeviceName,
-			"pci_address":      nic.PCIAddress,
-			"part_number":      nic.PartNumber,
-			"serial_number":    nic.SerialNumber,
-			"firmware_version": nic.FirmwareVersion,
-			"port_count":       nic.PortCount,
-			"psid":             nic.PSID,
+		protoNIC := &v1.MellanoxNIC{
+			DeviceName:      nic.DeviceName,
+			PciAddress:      nic.PCIAddress,
+			PartNumber:      nic.PartNumber,
+			SerialNumber:    nic.SerialNumber,
+			FirmwareVersion: nic.FirmwareVersion,
+			PortCount:       int32(nic.PortCount),
+			Psid:            nic.PSID,
 		}
 
 		// Convert ports
 		if len(nic.Ports) > 0 {
-			var protoPorts []map[string]interface{}
+			var protoPorts []*v1.MellanoxPort
 			for _, port := range nic.Ports {
-				protoPort := map[string]interface{}{
-					"number":         port.Number,
-					"state":          convertPortState(port.State),
-					"speed":          convertPortSpeed(port.Speed),
-					"mac_address":    port.MACAddress,
-					"mtu":            port.MTU,
-					"guid":           port.GUID,
-					"pci_address":    port.PCIAddress,
-					"interface_name": port.InterfaceName,
+				protoPort := &v1.MellanoxPort{
+					Number:        int32(port.Number),
+					State:         convertPortState(port.State),
+					Speed:         convertPortSpeed(port.Speed),
+					MacAddress:    port.MACAddress,
+					Mtu:           int32(port.MTU),
+					Guid:          port.GUID,
+					PciAddress:    port.PCIAddress,
+					InterfaceName: port.InterfaceName,
 				}
 				protoPorts = append(protoPorts, protoPort)
 			}
-			protoNIC["ports"] = protoPorts
+			protoNIC.Ports = protoPorts
 		}
 
 		protoNICs = append(protoNICs, protoNIC)
@@ -118,40 +116,40 @@ func convertToProtoNICs(nics []NICInfo) []map[string]interface{} {
 }
 
 // convertPortState converts string state to proto enum value.
-func convertPortState(state string) string {
+func convertPortState(state string) v1.PortState {
 	switch strings.ToLower(state) {
 	case "up":
-		return "PORT_STATE_UP"
+		return v1.PortState_PORT_STATE_UP
 	case "down":
-		return "PORT_STATE_DOWN"
+		return v1.PortState_PORT_STATE_DOWN
 	case "testing":
-		return "PORT_STATE_TESTING"
+		return v1.PortState_PORT_STATE_TESTING
 	default:
-		return "PORT_STATE_UNSPECIFIED"
+		return v1.PortState_PORT_STATE_UNSPECIFIED
 	}
 }
 
 // convertPortSpeed converts speed string (e.g., "100G") to proto enum value.
-func convertPortSpeed(speed string) string {
+func convertPortSpeed(speed string) v1.PortSpeed {
 	switch speed {
 	case "1G":
-		return "PORT_SPEED_1G"
+		return v1.PortSpeed_PORT_SPEED_1G
 	case "10G":
-		return "PORT_SPEED_10G"
+		return v1.PortSpeed_PORT_SPEED_10G
 	case "25G":
-		return "PORT_SPEED_25G"
+		return v1.PortSpeed_PORT_SPEED_25G
 	case "40G":
-		return "PORT_SPEED_40G"
+		return v1.PortSpeed_PORT_SPEED_40G
 	case "50G":
-		return "PORT_SPEED_50G"
+		return v1.PortSpeed_PORT_SPEED_50G
 	case "100G":
-		return "PORT_SPEED_100G"
+		return v1.PortSpeed_PORT_SPEED_100G
 	case "200G":
-		return "PORT_SPEED_200G"
+		return v1.PortSpeed_PORT_SPEED_200G
 	case "400G":
-		return "PORT_SPEED_400G"
+		return v1.PortSpeed_PORT_SPEED_400G
 	default:
-		return "PORT_SPEED_UNSPECIFIED"
+		return v1.PortSpeed_PORT_SPEED_UNSPECIFIED
 	}
 }
 

@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"net"
 	"testing"
 	"time"
 
@@ -18,9 +17,10 @@ var lis *bufconn.Listener
 // mockAgentServer implements the AgentService for testing.
 type mockAgentServer struct {
 	v1.UnimplementedAgentServiceServer
-	registerFunc      func(ctx context.Context, req *v1.RegisterAgentRequest) (*v1.RegisterAgentResponse, error)
-	getInstructionsFunc func(ctx context.Context, req *v1.GetInstructionsRequest) (*v1.GetInstructionsResponse, error)
-	unregisterFunc    func(ctx context.Context, req *v1.UnregisterAgentRequest) (*v1.UnregisterAgentResponse, error)
+	registerFunc              func(ctx context.Context, req *v1.RegisterAgentRequest) (*v1.RegisterAgentResponse, error)
+	getInstructionsFunc       func(ctx context.Context, req *v1.GetInstructionsRequest) (*v1.GetInstructionsResponse, error)
+	unregisterFunc            func(ctx context.Context, req *v1.UnregisterAgentRequest) (*v1.UnregisterAgentResponse, error)
+	submitInstructionResultFunc func(ctx context.Context, req *v1.SubmitInstructionResultRequest) (*v1.SubmitInstructionResultResponse, error)
 }
 
 func (m *mockAgentServer) RegisterAgent(ctx context.Context, req *v1.RegisterAgentRequest) (*v1.RegisterAgentResponse, error) {
@@ -55,8 +55,14 @@ func (m *mockAgentServer) UnregisterAgent(ctx context.Context, req *v1.Unregiste
 	return &v1.UnregisterAgentResponse{}, nil
 }
 
-func bufDialer(context.Context, string) (net.Conn, error) {
-	return lis.Dial()
+func (m *mockAgentServer) SubmitInstructionResult(ctx context.Context, req *v1.SubmitInstructionResultRequest) (*v1.SubmitInstructionResultResponse, error) {
+	if m.submitInstructionResultFunc != nil {
+		return m.submitInstructionResultFunc(ctx, req)
+	}
+	return &v1.SubmitInstructionResultResponse{
+		Success: true,
+		Message: "Result received",
+	}, nil
 }
 
 func startMockServer(mock *mockAgentServer) *grpc.Server {
